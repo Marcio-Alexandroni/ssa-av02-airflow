@@ -1,19 +1,22 @@
-# AV-02 SSA — Pipeline de Streaming Musical com Apache Airflow
+# AV-02 SSA — Pipeline de Streaming Musical com Apache Airflow 3.1.8
 
-Pipeline de análise de dados de um app de stream musical, implementado com **Apache Airflow 3.x** e **PostgreSQL**.
+Pipeline de análise de dados de um app de stream musical, implementado com **Apache Airflow 3.1.8** e **PostgreSQL 16**.
+
+Ambiente idêntico ao utilizado pelo professor ([esensato/temp](https://github.com/esensato/temp)):
+- `LocalExecutor` + `SimpleAuthManager`
+- Fernet Key e `airflow.cfg` originais
 
 ---
 
 ## Pré-requisitos
 
-- [Docker](https://docs.docker.com/get-docker/) instalado
-- [Docker Compose](https://docs.docker.com/compose/install/) v2+
+- [Docker](https://docs.docker.com/get-docker/) + [Docker Compose](https://docs.docker.com/compose/install/) v2+
 - Git
-- Acesso ao [GitHub Codespaces](https://github.com/codespaces) (recomendado pelo professor)
+- [GitHub Codespaces](https://github.com/codespaces) (recomendado)
 
 ---
 
-## Como rodar (passo a passo)
+## Como rodar
 
 ### 1. Clone o repositório
 
@@ -22,17 +25,17 @@ git clone https://github.com/Marcio-Alexandroni/ssa-av02-airflow.git
 cd ssa-av02-airflow
 ```
 
-### 2. Execute o setup inicial (apenas uma vez)
+### 2. Execute o setup (apenas uma vez)
 
 ```bash
 bash setup.sh
 ```
 
-O script faz automaticamente:
-- Gera o arquivo `.env` com o `AIRFLOW_UID` correto
-- Cria as pastas necessárias (`dags/`, `logs/`, `data/`, etc.)
-- Baixa o dataset `dados-stream.csv` para `./data/`
-- Inicializa o banco de dados do Airflow
+O script faz:
+- Gera `.env` com `AIRFLOW_UID` correto
+- Cria as pastas (`dags/`, `logs/`, `data/`, etc.)
+- Baixa `dados-stream.csv` direto do repositório do professor
+- Roda `airflow-init` (migra banco + cria usuário `admin`)
 
 ### 3. Suba o ambiente
 
@@ -40,20 +43,36 @@ O script faz automaticamente:
 docker compose up -d
 ```
 
-### 4. Acesse o Airflow
+### 4. Acesse a UI
 
-Abra no navegador: [http://localhost:8080](http://localhost:8080)
+[http://localhost:8080](http://localhost:8080)
 
 | Campo | Valor |
 |---|---|
-| Usuário | `airflow` |
-| Senha | `airflow` |
+| Usuário | `admin` |
+| Senha | `admin` |
 
-### 5. Execute a DAG
+### 5. Configure a conexão com o PostgreSQL
 
-- Encontre a DAG `av02_stream_pipeline` na lista
-- Clique no toggle para ativar
-- Clique em **Trigger DAG** para executar manualmente
+Na UI: **Admin → Connections → +**
+
+| Campo | Valor |
+|---|---|
+| Connection Id | `postgres_default` |
+| Connection Type | `Postgres` |
+| Host | `postgres` |
+| Schema | `airflow` |
+| Login | `airflow` |
+| Password | `airflow` |
+| Port | `5432` |
+
+> As tabelas `genero_musical` e `descartados` já são criadas automaticamente pelo `sql/init.sql` na primeira subida do PostgreSQL.
+
+### 6. Execute a DAG
+
+- Encontre `av02_stream_pipeline` na lista de DAGs
+- Ative o toggle
+- Clique em **Trigger DAG ▶**
 
 ---
 
@@ -63,28 +82,27 @@ Abra no navegador: [http://localhost:8080](http://localhost:8080)
 TASK-1  Copia dados-stream.csv → entrada.csv
   └► TASK-2  Normaliza datas (yyyy-mm-dd → dd/mm/aaaa) → task2.csv
         └► TASK-3  Remove linhas sem nome_musica → task3.csv  [xcom: descartados]
-              ├► TASK-4  INSERT na tabela `descartados` (qtd. de linhas removidas)
-              └► TASK-5  SELECT da tabela `genero_musical`
+              ├► TASK-4  INSERT na tabela `descartados`
+              └► TASK-5  SELECT tabela `genero_musical`
                     └► TASK-6  Enriquece com nome_genero → task4.csv
-                          ├► TASK-7  Média de avaliação por música → media_avaliacao.csv  ─┐
-                          └► TASK-8  Total de músicas por artista → total_artista.csv      ─┤ paralelas
+                          ├► TASK-7  Média de avaliação por música → media_avaliacao.csv  ─┐ paralelas
+                          └► TASK-8  Total de músicas por artista → total_artista.csv      ─┘
                                                                                              ▼
-                                                                         TASK-9  Remove entrada.csv (ALL_DONE)
-                                                                               └► TASK-10  Fim do pipeline
+                                                                     TASK-9  rm entrada.csv (ALL_DONE)
+                                                                           └► TASK-10  Fim
 ```
 
 ---
 
-## Arquivos gerados pelo pipeline
+## Arquivos gerados
 
 | Arquivo | Conteúdo |
 |---|---|
-| `data/entrada.csv` | Cópia do dataset original (removida ao final) |
 | `data/task2.csv` | Dataset com datas normalizadas |
-| `data/task3.csv` | Dataset sem registros com `nome_musica` vazio |
-| `data/task4.csv` | Dataset enriquecido com `nome_genero` |
+| `data/task3.csv` | Sem registros com `nome_musica` vazio |
+| `data/task4.csv` | Com coluna `nome_genero` |
 | `data/media_avaliacao.csv` | Média de nota por música |
-| `data/total_artista.csv` | Total de músicas ouvidas por artista |
+| `data/total_artista.csv` | Total de plays por artista |
 
 ---
 
@@ -93,51 +111,23 @@ TASK-1  Copia dados-stream.csv → entrada.csv
 ```
 ssa-av02-airflow/
 ├── dags/
-│   └── av02_stream_dag.py   ← DAG principal
+│   └── av02_stream_dag.py     ← DAG principal
 ├── sql/
-│   └── init.sql             ← Cria tabelas e insere gêneros automaticamente
-├── data/                    ← Gerado pelo setup.sh (não versionado)
-├── logs/                    ← Gerado pelo Airflow (não versionado)
-├── docker-compose.yaml      ← Ambiente completo
-├── requirements.txt         ← Dependências Python
-├── setup.sh                 ← Script de inicialização
-└── .env.example             ← Modelo do .env
+│   └── init.sql               ← Cria tabelas e insere gêneros automaticamente
+├── config/
+│   └── airflow.cfg            ← Idêntico ao do professor (SimpleAuthManager, Fernet Key)
+├── data/                      ← Gerado pelo setup.sh
+├── logs/                      ← Gerado pelo Airflow
+├── docker-compose.yaml        ← Airflow 3.1.8 + PostgreSQL 16
+├── requirements.txt           ← Dependências Python
+├── setup.sh                   ← Inicialização com um comando
+└── .env                       ← Gerado pelo setup.sh
 ```
 
 ---
 
-## Dependências Python
+## Referências
 
-Todas declaradas em `requirements.txt` e instaladas automaticamente pelos containers:
-
-| Pacote | Função |
-|---|---|
-| `pandas` | Leitura, transformação e escrita de CSVs |
-| `psycopg2-binary` | Conector PostgreSQL |
-| `apache-airflow-providers-common-sql` | `SQLExecuteQueryOperator` |
-| `apache-airflow-providers-postgres` | Conexão `postgres_default` |
-| `apache-airflow-providers-standard` | `BashOperator`, `PythonOperator` |
-| `pendulum` | Timezone `America/Sao_Paulo` |
-
----
-
-## Tabelas no banco de dados
-
-### `genero_musical`
-| id_genero | nome_genero |
-|---|---|
-| 001 | POP |
-| 002 | ROCK |
-| 003 | RAP |
-| 004 | SOUL |
-| 005 | OUTROS |
-
-### `descartados`
-Registra o total de linhas removidas na TASK-3 a cada execução.
-
----
-
-## Referência
-
-- Repositório do professor: [esensato/ssa-2026-01](https://github.com/esensato/ssa-2026-01)
-- Enunciado da avaliação: [AV-02-SSA-Airflow.md](https://github.com/esensato/ssa-2026-01/blob/main/AV-02-SSA-Airflow.md)
+- Ambiente do professor: [esensato/temp](https://github.com/esensato/temp)
+- Enunciado: [AV-02-SSA-Airflow.md](https://github.com/esensato/ssa-2026-01/blob/main/AV-02-SSA-Airflow.md)
+- Docs oficiais: [airflow.apache.org/docs/docker-compose](https://airflow.apache.org/docs/apache-airflow/stable/howto/docker-compose/index.html)

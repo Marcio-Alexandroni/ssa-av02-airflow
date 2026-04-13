@@ -1,14 +1,12 @@
-# Ambiente
+# Ambiente local (gerado pelo setup.sh)
 .env
 __pycache__/
 *.pyc
 *.pyo
 
-# Logs e dados gerados pelo pipeline (não versionar)
+# Dados e logs gerados em runtime
 logs/
-data/*.csv
 data/
 
 # Airflow internos
 plugins/
-config/airflow.cfg
