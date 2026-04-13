@@ -1,0 +1,14 @@
+# Ambiente
+.env
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs e dados gerados pelo pipeline (não versionar)
+logs/
+data/*.csv
+data/
+
+# Airflow internos
+plugins/
+config/airflow.cfg

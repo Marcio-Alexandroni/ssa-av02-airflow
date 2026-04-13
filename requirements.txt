@@ -1,0 +1,21 @@
+# ─────────────────────────────────────────────────────────────────
+# AV-02 SSA — Dependências Python para o pipeline Airflow
+# ─────────────────────────────────────────────────────────────────
+
+# Manipulação de dados (leitura/escrita de CSV, transformações)
+pandas==2.2.3
+
+# Conector PostgreSQL para SQLAlchemy e providers do Airflow
+psycopg2-binary==2.9.9
+
+# Provider SQL comum (SQLExecuteQueryOperator)
+apache-airflow-providers-common-sql==1.14.2
+
+# Provider PostgreSQL (conexão postgres_default)
+apache-airflow-providers-postgres==5.12.0
+
+# Provider Standard (BashOperator, PythonOperator — já incluídos no core 3.x, mas explícito para garantia)
+apache-airflow-providers-standard==0.0.3
+
+# Utilitários de timezone
+pendulum==3.0.0
